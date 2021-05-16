@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pristine</title>
+</head>
+<body>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        function onSignIn(googleUser) {
+            const idToken = googleUser.credential;
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", '/api/login', true);
+
+            //Send the proper header information along with the request
+            xhr.setRequestHeader("Content-Type", "application/json");
+
+            xhr.onload = function() { // Call a function when the state changes.
+                console.log("signed in as: " + xhr.responseText);
+            }
+
+            reqBody = {'idToken': idToken};
+            xhr.send(JSON.stringify(reqBody));
+        }
+    </script>
+    <div id="g_id_onload"
+         data-client_id="214628435307-btgenci9bn7cc4qv7bt14gl5ul56te5d.apps.googleusercontent.com"
+         data-callback="onSignIn"
+         data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin"
+         data-type="standard"
+         data-size="large"
+         data-theme="outline"
+         data-text="sign_in_with"
+         data-shape="rectangular"
+         data-logo_alignment="left">
+    </div>
+</body>
+</html>
