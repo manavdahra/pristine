@@ -1,8 +1,11 @@
-package interfaces
+package service_interfaces
 
-import "pristine/models"
+import (
+	"context"
+	"pristine/models"
+)
 
 type OrganisationService interface {
-	FindOrganisation(orgId string) (*models.Organisation, error)
-	SaveOrganisation(newOrg models.OrganisationCreateOrUpdate) (*models.Organisation, error)
+	FindOrganisationByOrgId(ctx context.Context, orgId string) (*models.Organisation, error)
+	SaveOrganisation(ctx context.Context, newOrg models.OrganisationCreateOrUpdate) (*models.Organisation, error)
 }

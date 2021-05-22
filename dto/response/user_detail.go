@@ -5,7 +5,8 @@ import (
 )
 
 type UserDetail struct {
-	Name    string          `json:"name"`
-	Email   string          `json:"email"`
-	Payload idtoken.Payload `json:"payload"`
+	UserId  string             `json:"userId"`
+	Name    string             `json:"name"`
+	Email   string             `json:"email"`
+	Payload idtoken.Payload    `json:"payload"`
 }

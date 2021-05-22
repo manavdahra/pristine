@@ -3,47 +3,63 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	muxHandlers "github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"pristine/config"
 	"pristine/handlers"
 	"pristine/providers"
 	"pristine/repositories"
+	"pristine/services"
 	"time"
 )
 
 func main() {
+	logger := providers.InitLogger()
+
 	var wait time.Duration
-	flag.DurationVar(&wait, "graceful-timeout", time.Second * 15, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
+	flag.DurationVar(&wait, "graceful-timeout", time.Second*15, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
 	flag.Parse()
 
+	cfg := config.Init()
 	idGen := providers.NewIdGenerator()
-	authProvider := providers.NewAuthProvider()
-	orgDbRepo := repositories.NewOrgDbRepo(idGen)
+	mongo := providers.NewMongoDAL(cfg, logger)
+	userDbRepo := repositories.NewUserDbRepo(idGen, mongo, logger)
+	userService := services.NewUserService(userDbRepo)
+	//orgDbRepo := repositories.NewOrgDbRepo(idGen, mongo, logger)
 
-	authHandler := handlers.NewAuthHandler(orgDbRepo, authProvider)
+	middlewares := handlers.NewMiddlewares(logger)
+	authHandler := handlers.NewAuthHandler(userService, cfg, logger)
 
 	r := mux.NewRouter()
-	r.Use(handlers.LoggingMiddleware)
+
+	r.Use(middlewares.LoggingMiddleware)
 	r.HandleFunc("/api/health", handlers.HealthCheckHandler)
 	r.HandleFunc("/api/login", authHandler.LoginHandler)
 	r.PathPrefix("/").Handler(handlers.NewSpaHandler("build", "index.html"))
 
+	//handler := muxHandlers.RecoveryHandler()(r)
+	handler := muxHandlers.CORS(
+		muxHandlers.AllowedOrigins([]string{"*"}),
+		muxHandlers.AllowedHeaders([]string{"X-Requested-With", "Content-type"}),
+		muxHandlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "OPTIONS"}),
+	)(r)
+
 	srv := &http.Server{
-		Handler:      muxHandlers.RecoveryHandler()(r),
-		Addr:         "0.0.0.0:8080",
+		Handler:      handler,
+		Addr:         fmt.Sprintf("%s:%s", cfg.GetHost(), cfg.GetPort()),
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
 
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
-		log.Printf("starting server: %s\n", srv.Addr)
+		logger.Infow("starting server", "address", srv.Addr, "handler", srv.Handler)
 		if err := srv.ListenAndServe(); err != nil {
-			log.Println(err)
+			logger.Error(err)
 		}
 	}()
 
@@ -64,6 +80,8 @@ func main() {
 	// Optionally, you could run srv.Shutdown in a goroutine and block on
 	// <-ctx.Done() if your application should wait for other services
 	// to finalize based on context cancellation.
-	log.Println("shutting down")
+	logger.Info("shutting down")
+	logger.Sync()
+
 	os.Exit(0)
 }

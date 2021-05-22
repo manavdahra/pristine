@@ -1,62 +1,82 @@
 package repositories
 
 import (
+	"context"
 	"errors"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/zap"
 	"pristine/models"
 	"pristine/providers"
 )
 
 type OrgDbRepo struct {
-	OrganisationsMap map[string]models.Organisation
-	IdGenerator      *providers.IdGenerator
+	collectionName string
+	logger         *zap.SugaredLogger
+	mongo          *providers.MongoDAL
+	IdGenerator    *providers.IdGenerator
 }
 
-func NewOrgDbRepo(idGen *providers.IdGenerator) *OrgDbRepo {
+func NewOrgDbRepo(idGen *providers.IdGenerator, mongo *providers.MongoDAL, logger *zap.SugaredLogger) *OrgDbRepo {
 	return &OrgDbRepo{
-		OrganisationsMap: make(map[string]models.Organisation, 0),
-		IdGenerator: idGen,
+		collectionName: "organisation",
+		logger:         logger,
+		mongo:          mongo,
+		IdGenerator:    idGen,
 	}
 }
 
-func (repo *OrgDbRepo) GetOrgById(id string) (*models.Organisation, error) {
-	if org, ok := repo.OrganisationsMap[id]; ok {
-		return &org, nil
-	} else {
-		return nil, errors.New("organisation not found")
+func (repo *OrgDbRepo) GetOrgById(ctx context.Context, id primitive.ObjectID) (*models.Organisation, error) {
+	var org, err = &models.Organisation{}, error(nil)
+	res := repo.mongo.Db.Collection(repo.collectionName).FindOne(ctx, bson.D{{"_id", id}})
+	err = res.Err()
+	if err != nil {
+		return nil, err
 	}
+	if err = res.Decode(org); err != nil {
+		return nil, err
+	}
+	return org, nil
 }
 
-func (repo *OrgDbRepo) GetOrgByEmail(email string) (*models.Organisation, error) {
-	for _, org := range repo.OrganisationsMap {
-		if org.Email == email {
-			return &org, nil
-		}
+func (repo *OrgDbRepo) GetOrgByOrgId(ctx context.Context, orgId string) (*models.Organisation, error) {
+	var org, err = &models.Organisation{}, error(nil)
+	res := repo.mongo.Db.Collection(repo.collectionName).FindOne(ctx, bson.D{{"orgId", orgId}})
+	err = res.Err()
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("organisation not found")
+	if err = res.Decode(org); err != nil {
+		return nil, err
+	}
+	return org, nil
 }
 
-func (repo *OrgDbRepo) CreateOrg(newOrg models.OrganisationCreateOrUpdate) (*models.Organisation, error) {
-	orgId := repo.IdGenerator.GenerateNewId()
-	model := models.Organisation{
-		Id:    orgId,
+func (repo *OrgDbRepo) CreateOrg(ctx context.Context, newOrg models.OrganisationCreateOrUpdate) (*models.Organisation, error) {
+	res, err := repo.mongo.Db.Collection(repo.collectionName).InsertOne(ctx, &models.Organisation{
+		OrgId: repo.IdGenerator.GenerateNewId(),
 		Name:  newOrg.Name,
-		Email: newOrg.Email,
+	})
+	if err != nil {
+		return nil, err
 	}
-	repo.OrganisationsMap[orgId] = model
-	return &model, nil
+	return repo.GetOrgById(ctx, res.InsertedID.(primitive.ObjectID))
 }
 
-func (repo *OrgDbRepo) UpdateOrg(organisation models.OrganisationCreateOrUpdate) (*models.Organisation, error) {
-	orgId := repo.IdGenerator.GenerateNewId()
-	if model, ok := repo.OrganisationsMap[orgId]; ok {
-		model.Name = organisation.Name
-		model.Email = organisation.Email
-		repo.OrganisationsMap[orgId] = model
-		return &model, nil
-	} else {
-		return repo.CreateOrg(models.OrganisationCreateOrUpdate{
-			Name:  organisation.Name,
-			Email: organisation.Email,
-		})
+func (repo *OrgDbRepo) UpdateOrg(ctx context.Context, organisation models.OrganisationCreateOrUpdate) (*models.Organisation, error) {
+	if organisation.OrgId != "" {
+		return nil, errors.New("org id cannot be empty for updating organisation")
 	}
+	res := repo.mongo.Db.Collection(repo.collectionName).FindOneAndUpdate(ctx, bson.D{{"orgId", organisation.OrgId}},
+		bson.M{
+			"name":  organisation.Name,
+		})
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
+	var updatedOrg *models.Organisation
+	if err := res.Decode(updatedOrg); err != nil {
+		return nil, err
+	}
+	return updatedOrg, nil
 }

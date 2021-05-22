@@ -1,23 +1,37 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"go.uber.org/zap"
+	"google.golang.org/api/idtoken"
 	"net/http"
+	"os"
 	"pristine/dto/request"
 	"pristine/dto/response"
-	"pristine/providers"
-	"pristine/repositories/interfaces"
+	handler_interfaces "pristine/handlers/interfaces"
+	"pristine/models"
+	service_interfaces "pristine/services/interfaces"
 )
 
 type AuthHandler struct {
-	OrgRepo      interfaces.OrganisationRepo
-	AuthProvider *providers.AuthProvider
+	logger      *zap.SugaredLogger
+	UserService service_interfaces.UserService
+	Validator   *idtoken.Validator
+	AuthConfig  handler_interfaces.AuthConfig
 }
 
-func NewAuthHandler(orgRepo interfaces.OrganisationRepo, authProvider *providers.AuthProvider) *AuthHandler {
+func NewAuthHandler(userService service_interfaces.UserService, authConfig handler_interfaces.AuthConfig, logger *zap.SugaredLogger) *AuthHandler {
+	validator, err := idtoken.NewValidator(context.Background(), idtoken.WithHTTPClient(http.DefaultClient))
+	if err != nil {
+		logger.Error(err)
+		os.Exit(1)
+	}
 	return &AuthHandler{
-		OrgRepo:      orgRepo,
-		AuthProvider: authProvider,
+		logger:      logger,
+		UserService: userService,
+		Validator:   validator,
+		AuthConfig:  authConfig,
 	}
 }
 
@@ -34,29 +48,44 @@ func (handler *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request)
 	var loginReq request.LoginReq
 	if err = json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("cannot read login request body"))
+		_, _ = w.Write([]byte("cannot read login request body"))
 		return
 	}
 
-	resp, err := handler.AuthProvider.AuthService.Validate(r.Context(), loginReq.IdToken, "214628435307-btgenci9bn7cc4qv7bt14gl5ul56te5d.apps.googleusercontent.com")
+	handler.logger.Infof("tokenId: %s", loginReq.IdToken)
+	ctx := r.Context()
+	resp, err := handler.Validator.Validate(ctx, loginReq.IdToken, handler.AuthConfig.GetClientId())
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+
+	name := resp.Claims["name"].(string)
+	email := resp.Claims["email"].(string)
+	user, err := handler.UserService.SignInUser(ctx, models.UserCreateOrUpdate{
+		Name:  name,
+		Email: email,
+	})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("cannot validate user account"))
+		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 
 	userDetail := response.UserDetail{
+		UserId:  user.UserId,
 		Payload: *resp,
-		Name:    resp.Claims["name"].(string),
-		Email:   resp.Claims["email"].(string),
+		Name:    user.Name,
+		Email:   user.Email,
 	}
 	respBytes, err := json.Marshal(userDetail)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("cannot validate user account"))
+		_, _ = w.Write([]byte("cannot validate user account"))
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(respBytes)
+	_, _ = w.Write(respBytes)
 }

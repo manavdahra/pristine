@@ -1,13 +1,11 @@
 package models
 
 type Organisation struct {
-	Id    string
+	OrgId string
 	Name  string
-	Email string
 }
 
 type OrganisationCreateOrUpdate struct {
-	Id    string
+	OrgId string
 	Name  string
-	Email string
 }
