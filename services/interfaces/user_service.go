@@ -7,6 +7,7 @@ import (
 
 type UserService interface {
 	SignInUser(ctx context.Context, user models.UserCreateOrUpdate) (*models.User, error)
+	SignOutUser(ctx context.Context, email string) error
 	FindUserByEmail(ctx context.Context, email string) (*models.User, error)
 	SaveUser(ctx context.Context, newOrg models.UserCreateOrUpdate) (*models.User, error)
 }

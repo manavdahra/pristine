@@ -42,6 +42,17 @@ func (service *UserService) SignInUser(ctx context.Context, user models.UserCrea
 	return existingUser, nil
 }
 
+func (service *UserService) SignOutUser(ctx context.Context, email string) error {
+	_, err := service.FindUserByEmail(ctx, email)
+	if err != nil {
+		if err != mongo.ErrNoDocuments {
+			return err
+		}
+	}
+	delete(service.userMap, email)
+	return nil
+}
+
 func (service *UserService) SaveUser(ctx context.Context, newUser models.UserCreateOrUpdate) (*models.User, error) {
 	if newUser.UserId != "" {
 		return service.userRepo.UpdateUser(ctx, newUser)

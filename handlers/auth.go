@@ -89,3 +89,23 @@ func (handler *AuthHandler) LoginHandler(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(respBytes)
 }
+
+func (handler *AuthHandler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	var err error
+	var logoutReq request.LogoutReq
+	if err = json.NewDecoder(r.Body).Decode(&logoutReq); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("cannot read login request body"))
+		return
+	}
+
+	handler.logger.Infof("email: %s", logoutReq.Email)
+	ctx := r.Context()
+	if err = handler.UserService.SignOutUser(ctx, logoutReq.Email); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("cannot read login request body"))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}

@@ -38,7 +38,8 @@ func main() {
 
 	r.Use(middlewares.LoggingMiddleware)
 	r.HandleFunc("/api/health", handlers.HealthCheckHandler)
-	r.HandleFunc("/api/login", authHandler.LoginHandler)
+	r.HandleFunc("/api/signIn", authHandler.LoginHandler)
+	r.HandleFunc("/api/signOut", authHandler.LogoutHandler)
 	r.PathPrefix("/").Handler(handlers.NewSpaHandler("build", "index.html"))
 
 	//handler := muxHandlers.RecoveryHandler()(r)
