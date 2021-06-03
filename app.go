@@ -44,9 +44,9 @@ func main() {
 
 	//handler := muxHandlers.RecoveryHandler()(r)
 	handler := muxHandlers.CORS(
-		muxHandlers.AllowedOrigins([]string{"*"}),
-		muxHandlers.AllowedHeaders([]string{"X-Requested-With", "Content-type"}),
-		muxHandlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "OPTIONS"}),
+		muxHandlers.AllowedOrigins(cfg.AllowedOrigins()),
+		muxHandlers.AllowedHeaders(cfg.AllowedHeaders()),
+		muxHandlers.AllowedMethods(cfg.AllowedMethods()),
 	)(r)
 
 	srv := &http.Server{

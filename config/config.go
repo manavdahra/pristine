@@ -10,6 +10,12 @@ import (
 type Config struct {
 	once sync.Once
 
+	Cors struct {
+		AllowedHeaders []string `yaml:"allowed_headers"`
+		AllowedOrigins []string `yaml:"allowed_origins"`
+		AllowedMethods []string `yaml:"allowed_methods"`
+	} `yaml:"cors"`
+
 	Server struct {
 		Host string `yaml:"host"`
 		Port string `yaml:"port"`
@@ -58,6 +64,18 @@ func (config *Config) GetDbName() string {
 
 func (config *Config) GetMongoDbUri() string {
 	return config.MongoDB.Uri
+}
+
+func (config *Config) AllowedHeaders() []string {
+	return config.Cors.AllowedHeaders
+}
+
+func (config *Config) AllowedOrigins() []string {
+	return config.Cors.AllowedOrigins
+}
+
+func (config *Config) AllowedMethods() []string {
+	return config.Cors.AllowedMethods
 }
 
 func (config *Config) GetHost() string {
